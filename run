@@ -1,0 +1,131 @@
+#!/bin/bash
+
+set -eu
+set -o pipefail
+set +o posix
+shopt -s inherit_errexit
+
+build-small-static-exe() {
+    RUSTFLAGS='-C target-feature=+crt-static' cargo build --profile release-lto --target x86_64-unknown-linux-gnu
+    output_exe=target/x86_64-unknown-linux-gnu/release-lto/deltaimage
+    strip ${output_exe}
+}
+
+get-version() {
+    cat Cargo.toml | grep "^version =" | awk -F\" '{print $2}'
+}
+
+build-docker-image() {
+    local version
+
+    version=$(get-version)
+
+    echo Building: deltaimage/deltaimage:${version}
+
+    docker build  --network=host . --tag deltaimage/deltaimage:${version}
+}
+
+# Tests
+
+test-simple() {
+    local version
+    local IMAGE_B IMAGE_REPOS IMAGE_A
+
+    IMAGE_REPOS="$1"
+    IMAGE_A="$2"
+    IMAGE_B="$3"
+
+    version=$(get-version)
+
+    echo
+    echo "Target image history"
+    echo
+
+    # docker pull ${IMAGE_REPOS}:${IMAGE_B}
+    docker history ${IMAGE_REPOS}:${IMAGE_B}
+
+    echo
+    echo "Checking delay image generation:"
+    echo
+
+    set -x
+    docker run deltaimage/deltaimage:${version} docker-file diff \
+	${IMAGE_REPOS}:${IMAGE_A} ${IMAGE_REPOS}:${IMAGE_B} |
+        docker build --no-cache -t local/deltaimage:delta -
+    set +x
+
+    docker history local/deltaimage:delta
+
+    echo
+    echo "Checking restored image:"
+    echo
+
+    set -x
+    docker run deltaimage/deltaimage:${version} docker-file apply \
+	local/deltaimage:delta | \
+        docker build --no-cache -t local/deltaimage:${IMAGE_B} -
+    set +x
+
+    docker history local/deltaimage:${IMAGE_B}
+
+    local instance_id
+
+    echo "Comparing ${IMAGE_REPOS}:${IMAGE_B} and local/deltaimage:${IMAGE_B}"
+
+    local tmp_dir
+    tmp_dir=$(mktemp -d -t prefix-XXXXXXXXXX)
+    instance_id=$(docker create ${IMAGE_REPOS}:${IMAGE_B} x 2>/dev/null)
+    sleep 0.1
+    docker export ${instance_id} | tar -tvf - > ${tmp_dir}/before
+    docker rm -f ${instance_id} >/dev/null
+
+    instance_id=$(docker create local/deltaimage:${IMAGE_B} x 2>/dev/null)
+    sleep 0.1
+    docker export ${instance_id} | tar -tvf - > ${tmp_dir}/after
+    docker rm -f ${instance_id} >/dev/null
+
+    set +e
+    diff -urN ${tmp_dir}/before ${tmp_dir}/after
+    local e=$?
+    set -e
+
+    local nrfiles
+
+    nrfiles=$(cat ${tmp_dir}/before | wc -l)
+
+    if [[ "${e}" == "0" ]] ; then
+	echo "No difference for ${nrfiles} files in resultant image"
+    fi
+
+    rm -rf ${tmp_dir}
+
+    docker image rm local/deltaimage:${IMAGE_B} local/deltaimage:delta
+
+    return $e
+}
+
+test-ubuntu-1() {
+    test-simple ubuntu mantic-20230607 mantic-20230624
+}
+
+test-rocky-1() {
+    # Wildly differing images
+    test-simple rockylinux 8-minimal 9.2.20230513
+}
+
+test-alpine-1() {
+    test-simple alpine 3.17.4 3.18.2
+}
+
+test-postgres-1() {
+    test-simple postgres 16beta2-alpine3.17 16beta2-alpine3.18
+}
+
+tests() {
+    test-ubuntu-1
+    test-rocky-1
+    test-alpine-1
+    test-postgres-1
+}
+
+"$@"

@@ -1,0 +1,21 @@
+[package]
+name = "deltaimage"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+xdelta3 = "0.1.5"
+structopt = "0.3"
+anyhow = "1.0.71"
+thiserror = "1.0.43"
+filetime = "0.2.21"
+walkdir = "2.3.3"
+nix = "0.26.2"
+serde = { version = "1.0.167", features = [ "derive" ] }
+serde_json = "1.0.100"
+xattr = "1.0.0"
+
+[profile.release-lto]
+inherits = "release"
+lto = true
+debug = 1
