@@ -28,16 +28,20 @@ Despite likely having a small difference between them, the combined size is 140.
 
 ### Delta generation
 
-You can generate a delta using the following shell script:
+Let's generate a delta using the following shell script:
 
 ```
+source=ubuntu:mantic-20230607
+target=ubuntu:mantic-20230624
+source_plus_delta=local/ubuntu-mantic-20230607-to-20230624
+
 docker run --rm deltaimage/deltaimage:0.1.0 \
-    docker-file diff ubuntu:mantic-20230607 ubuntu:mantic-20230624 | \
-        docker build --no-cache -t local/ubuntu-mantic-20230607-to-20230624 -
+    docker-file diff ${source} ${target} | \
+        docker build --no-cache -t ${source_plus_delta} -
 ```
 
 
-On inspecting the generated tag, you'll find:
+Now we can inspecting the generated tag:
 
 ```
 $ docker history local/ubuntu-mantic-20230607-to-20230624 | grep -v "0B"
@@ -54,20 +58,24 @@ This displays a first layer shared with `ubuntu:mantic-20230607` and a delta add
 Restore the image using:
 
 ```
-docker run deltaimage/deltaimage:0.1.0 docker-file apply \
-    local/ubuntu-mantic-20230607-to-20230624 | \
-        docker build --no-cache -t local:mantic-20230624 -
+source_plus_delta=local/ubuntu-mantic-20230607-to-20230624
+target_restored=local:mantic-20230624
+
+docker run deltaimage/deltaimage:0.1.0 docker-file apply ${source_plus_delta} \
+    | docker build --no-cache -t ${target_restored} -
 ```
 
 
-Inspect the recreated image local:mantic-20230624:
-
+Inspect the recreated image `local:mantic-20230624`:
 
 ```
 $ docker history local:mantic-20230624
 IMAGE          CREATED         CREATED BY                                 SIZE      COMMENT
 344a84625581   7 seconds ago   COPY /__deltaimage__.delta/ / # buildkit   70.4MB    buildkit.dockerfile.v0
 ```
+
+
+It should be observed that the file system content of `local:mantic-20230624` is the same as the original second image `ubuntu:mantic-20230624`.
 
 
 ## Building deltaimage
