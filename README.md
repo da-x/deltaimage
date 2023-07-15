@@ -26,7 +26,7 @@ IMAGE          CREATED       CREATED BY                                      SIZ
 Despite likely having a small difference between them, the combined size is 140.8 MB in our registry as they don't share layers.
 
 
-## Delta generation
+### Delta generation
 
 You can generate a delta using the following shell script:
 
@@ -49,7 +49,7 @@ b2e2961dc67a   3 minutes ago   COPY /delta /__deltaimage__.delta # buildkit    7
 This displays a first layer shared with `ubuntu:mantic-20230607` and a delta added as a second layer. The total size is just slightly over 71MB.
 
 
-## Restoring images from deltas
+### Restoring images from deltas
 
 Restore the image using:
 
