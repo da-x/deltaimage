@@ -120,7 +120,7 @@ COPY --from=deltaimage/deltaimage:0.1.0 /opt/deltaimage /opt/deltaimage
 USER root
 RUN ["/opt/deltaimage", "apply", "/", "/__deltaimage__.delta"]
 
-# Make the original image from applied delta
+# Make the original image by applying the delta
 FROM scratch
 COPY --from=applied /__deltaimage__.delta/ /
 ```
@@ -133,4 +133,4 @@ COPY --from=applied /__deltaimage__.delta/ /
 
 ## License
 
-Interact is licensed under Apache License, Version 2.0 ([LICENSE](LICENSE).
+Interact is licensed under Apache License, Version 2.0 ([LICENSE](LICENSE)).

@@ -72,7 +72,7 @@ COPY --from=deltaimage/deltaimage:{version} /opt/deltaimage /opt/deltaimage
 USER root
 RUN ["/opt/deltaimage", "apply", "/", "/__deltaimage__.delta"]
 
-# Make the original image from applied delta
+# Make the original image by applying the delta
 FROM scratch
 COPY --from=applied /__deltaimage__.delta/ /
 "#);
