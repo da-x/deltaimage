@@ -6,9 +6,23 @@ set +o posix
 shopt -s inherit_errexit
 
 build-small-static-exe() {
-    RUSTFLAGS='-C target-feature=+crt-static' cargo build --profile release-lto --target x86_64-unknown-linux-gnu
-    output_exe=target/x86_64-unknown-linux-gnu/release-lto/deltaimage
-    strip ${output_exe}
+    local arch target output_exe
+
+    arch=$(uname -m)
+    case "$arch" in
+        x86_64)      target="x86_64-unknown-linux-gnu" ;;
+        aarch64|arm64) target="aarch64-unknown-linux-gnu" ;;
+        *)
+            echo "Error: unsupported architecture '$arch'" >&2
+            return 1
+            ;;
+    esac
+
+    RUSTFLAGS="-C target-feature=+crt-static" \
+      cargo build --profile release-lto --target "$target"
+
+    output_exe="target/${target}/release-lto/deltaimage"
+    strip "$output_exe"
 }
 
 get-version() {
