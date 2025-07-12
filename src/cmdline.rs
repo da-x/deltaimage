@@ -21,9 +21,15 @@ pub enum DockerFile {
 
         #[structopt(long)]
         override_version: Option<String>,
+
+        #[structopt(long)]
+        unlinked: bool,
     },
     Apply {
         delta_image: String,
+
+        #[structopt(long)]
+        unlinked_source: Option<String>,
 
         #[structopt(long)]
         override_version: Option<String>,

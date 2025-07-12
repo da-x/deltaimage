@@ -50,7 +50,13 @@ fn docker_file(df: &cmdline::DockerFile) -> anyhow::Result<()> {
     }
 
     match df {
-        cmdline::DockerFile::Diff { image_a, image_b, .. } => {
+        cmdline::DockerFile::Diff { image_a, image_b, unlinked, .. } => {
+            let source = if *unlinked {
+                "scratch"
+            } else {
+                image_a
+            };
+
             println!(r#"
 # Calculate delta under a temporary image
 FROM scratch AS delta
@@ -60,14 +66,21 @@ COPY --from=deltaimage/deltaimage:{version} /opt/deltaimage /opt/deltaimage
 RUN ["/opt/deltaimage", "diff", "/source", "/delta"]
 
 # Make the deltaimage
-FROM {image_a}
+FROM {source}
 COPY --from=delta /delta /__deltaimage__.delta
 "#);
         },
-        cmdline::DockerFile::Apply { delta_image, .. } => {
+        cmdline::DockerFile::Apply { delta_image, unlinked_source, .. } => {
+            let copy_source = if let Some(unlinked_source) = unlinked_source {
+                format!("COPY --from={unlinked_source} / /")
+            } else {
+                format!("")
+            };
+
             println!(r#"
 # Apply a delta under a temporary image
 FROM {delta_image} AS applied
+{copy_source}
 COPY --from=deltaimage/deltaimage:{version} /opt/deltaimage /opt/deltaimage
 USER root
 RUN ["/opt/deltaimage", "apply", "/", "/__deltaimage__.delta"]

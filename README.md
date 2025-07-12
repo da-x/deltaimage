@@ -35,7 +35,7 @@ source=ubuntu:mantic-20230607
 target=ubuntu:mantic-20230624
 source_plus_delta=local/ubuntu-mantic-20230607-to-20230624
 
-docker run --rm deltaimage/deltaimage:0.1.0 \
+docker run --rm deltaimage/deltaimage:0.1.1 \
     docker-file diff ${source} ${target} | \
         docker build --no-cache -t ${source_plus_delta} -
 ```
@@ -61,7 +61,7 @@ Restore the image using:
 source_plus_delta=local/ubuntu-mantic-20230607-to-20230624
 target_restored=local:mantic-20230624
 
-docker run deltaimage/deltaimage:0.1.0 docker-file apply ${source_plus_delta} \
+docker run deltaimage/deltaimage:0.1.1 docker-file apply ${source_plus_delta} \
     | docker build --no-cache -t ${target_restored} -
 ```
 
@@ -74,6 +74,72 @@ IMAGE          CREATED         CREATED BY                                 SIZE  
 344a84625581   7 seconds ago   COPY /__deltaimage__.delta/ / # buildkit   70.4MB    buildkit.dockerfile.v0
 ```
 
+
+It should be observed that the file system content of `local:mantic-20230624` is the same as the original second image `ubuntu:mantic-20230624`.
+
+
+## Deltas as files
+
+For the use case of transporting delta images as files and not via `docker pull` / `docker push`, we would like to not have the history of the source image at all.
+
+To do that, we can use the `--unlinked` flag:
+
+
+### Unpacked delta image generation
+
+Let's generate a delta using the following shell script:
+
+```
+source=ubuntu:mantic-20230607
+target=ubuntu:mantic-20230624
+source_plus_delta=local/ubuntu-mantic-20230607-to-20230624
+
+docker run --rm deltaimage/deltaimage:0.1.1 \
+    docker-file diff ${source} ${target} --unlinked | \
+        docker build --no-cache -t ${source_plus_delta} -
+```
+
+
+Now we can inspecting the generated tag:
+
+```
+$ docker history local/ubuntu-mantic-20230607-to-20230624
+IMAGE          CREATED              CREATED BY                                     SIZE      COMMENT
+b72dab452543   About a minute ago   COPY /delta /__deltaimage__.delta # buildkit   786kB     buildkit.dockerfile.v0
+```
+
+This displays an independent layer. We can export it and look at its size:
+
+```
+$ docker save local/ubuntu-mantic-20230607-to-20230624 | zstd -c | wc -c
+408614
+```
+
+Nice - only 408KB.
+
+### Restoring images from unlinked deltas
+
+
+After using `docker load` on the unlinked delta, we can restore the image, but we must provide the origin using the `--unlinked-source` argument. Example script:
+
+```
+source=ubuntu:mantic-20230607
+source_plus_delta=local/ubuntu-mantic-20230607-to-20230624
+target_restored=local:mantic-20230624
+
+docker run deltaimage/deltaimage:0.1.1 \
+    docker-file apply ${source_plus_delta} --unlinked-source ${source}\
+        | docker build --no-cache -t ${target_restored} -
+```
+
+
+Inspect the recreated image `local:mantic-20230624`:
+
+```
+$ docker history local:mantic-20230624
+IMAGE          CREATED          CREATED BY                                 SIZE      COMMENT
+3766077ec312   26 seconds ago   COPY /__deltaimage__.delta/ / # buildkit   70.4MB    buildkit.dockerfile.v0
+```
 
 It should be observed that the file system content of `local:mantic-20230624` is the same as the original second image `ubuntu:mantic-20230624`.
 
